@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#131B24">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Ежедневный лист</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<style>
+html,body{background:#131B24 !important;}
+body{margin:0;}
+.dc-root{
+  --paper:#131B24; --ink:#E6ECF2; --muted:#8A9AAA; --line:#2C3A48;
+  --done:#2E9E78; --plum:#B37FA8; --surface:#1B2530; --onlight:#101820;
+  position:relative; background:var(--paper); color:var(--ink);
+  min-height:100vh; color-scheme:dark;
+  font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.dc-root::before{content:"";position:fixed;inset:-20px;background:#131B24;z-index:-1;}
+.dc-wrap{max-width:640px;margin:0 auto;padding:0 16px 56px;}
+.dc-loading{padding:40px 0;color:var(--muted);}
+
+.dc-head{position:sticky;top:0;z-index:5;background:var(--paper);padding:18px 0 0;
+  box-shadow:0 14px 14px -12px rgba(0,0,0,.6);}
+.dc-datebar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+.dc-date{font-size:15px;letter-spacing:.01em;color:var(--muted);}
+.dc-count{font-family:Georgia,"Times New Roman",serif;font-size:30px;line-height:1;color:var(--ink);}
+.dc-slash{color:var(--line);margin:0 1px;}
+
+.dc-tally{display:flex;gap:2px;margin:10px 0 12px;height:10px;}
+.dc-tally i{flex:1;background:transparent;border:1px solid var(--line);border-radius:1px;}
+.dc-tally i.on{background:var(--done);border-color:var(--done);}
+
+.dc-tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);}
+.dc-tabs button{background:none;border:0;padding:9px 0;font:inherit;font-size:15px;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.dc-tabs button.sel{color:var(--ink);border-bottom-color:var(--ink);}
+
+.dc-warn{margin:12px 0 0;padding:10px 12px;background:#30201C;color:#EFB9A9;
+  border-left:3px solid #C25A3E;font-size:14px;}
+
+.dc-list{list-style:none;margin:0;padding:0;}
+.row{border-bottom:1px solid var(--line);}
+.tick{display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:8px 2px;
+  background:none;border:0;font:inherit;text-align:left;color:var(--ink);cursor:pointer;}
+.box{flex:0 0 24px;width:24px;height:24px;border:1.5px solid var(--muted);border-radius:3px;
+  display:grid;place-items:center;transition:background .15s,border-color .15s;}
+.box svg{width:17px;height:17px;fill:none;stroke:var(--onlight);stroke-width:3;
+  stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:24;stroke-dashoffset:24;}
+.row.done .box{background:var(--done);border-color:var(--done);}
+.row.done .box svg{stroke-dashoffset:0;transition:stroke-dashoffset .22s ease-out;}
+.text{font-size:16px;line-height:1.35;}
+.row.done .text{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--line);}
+.tick:focus-visible{outline:2px solid var(--plum);outline-offset:2px;}
+
+.edit{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 2px;}
+.edit-text{flex:1;font-size:16px;}
+.edit-btns{display:flex;gap:6px;}
+.edit-btns button{width:34px;height:34px;border:1px solid var(--line);background:var(--surface);
+  border-radius:4px;font-size:15px;color:var(--muted);cursor:pointer;}
+.edit-btns .del{color:#D9765A;}
+
+.dc-add{display:flex;gap:8px;margin-top:14px;}
+.dc-add input{flex:1;padding:11px 12px;border:1px solid var(--line);border-radius:4px;
+  background:var(--surface);font:inherit;font-size:16px;color:var(--ink);}
+.dc-add input::placeholder{color:var(--muted);}
+.dc-add input:focus{outline:2px solid var(--plum);outline-offset:1px;}
+.dc-add button{padding:0 16px;border:0;background:var(--ink);color:var(--onlight);
+  border-radius:4px;font:inherit;font-size:15px;cursor:pointer;}
+
+.dc-result{margin-top:28px;padding-top:20px;border-top:2px solid var(--muted);}
+.dc-result h2{margin:0;font-size:14px;font-weight:600;color:var(--muted);letter-spacing:.02em;}
+.dc-big{display:flex;align-items:baseline;gap:12px;margin:6px 0 14px;}
+.dc-big .num{font-family:Georgia,serif;font-size:52px;line-height:1;color:var(--ink);}
+.dc-big .sub{font-size:15px;color:var(--muted);}
+.dc-left{margin:0 0 6px;font-size:15px;}
+.dc-missed{margin:0;padding-left:18px;color:var(--muted);font-size:15px;line-height:1.6;}
+.dc-note{margin:16px 0 0;font-size:13px;color:var(--muted);line-height:1.5;}
+
+.dc-tools{display:flex;gap:10px;margin-top:24px;}
+.dc-tools button{flex:1;padding:12px;border:1px solid var(--line);background:var(--surface);
+  border-radius:4px;font:inherit;font-size:15px;color:var(--ink);cursor:pointer;}
+.dc-tools.thin{margin-top:10px;}
+.dc-tools.thin button{padding:10px;font-size:14px;color:var(--muted);}
+
+.dc-stats h2{margin:30px 0 12px;font-size:14px;font-weight:600;color:var(--muted);}
+.dc-figures{display:flex;gap:14px;margin-top:22px;}
+.dc-figures div{flex:1;border-top:2px solid var(--plum);padding-top:8px;}
+.fig{display:block;font-family:Georgia,serif;font-size:28px;line-height:1.1;color:var(--ink);}
+.cap{display:block;font-size:12px;color:var(--muted);line-height:1.35;margin-top:3px;}
+
+.dc-chart{display:flex;gap:4px;align-items:flex-end;height:170px;}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;}
+.col .val{font-size:10px;color:var(--muted);margin-bottom:3px;}
+.bar-track{flex:1;width:100%;display:flex;align-items:flex-end;
+  background:linear-gradient(var(--line),var(--line)) no-repeat bottom/100% 1px;}
+.bar{width:100%;background:var(--ink);border-radius:1px 1px 0 0;}
+.bar.now{background:repeating-linear-gradient(45deg,var(--plum),var(--plum) 3px,var(--paper) 3px,var(--paper) 6px);}
+.col .lab{font-size:10px;color:var(--muted);margin-top:5px;white-space:nowrap;}
+
+.dc-rates{list-style:none;margin:0;padding:0;}
+.dc-rates li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+.rl{flex:1;font-size:14px;}
+.rb{flex:0 0 72px;height:6px;background:var(--line);border-radius:3px;overflow:hidden;}
+.rb span{display:block;height:100%;background:var(--done);}
+.rn{flex:0 0 38px;text-align:right;font-size:13px;color:var(--muted);}
+.dc-empty{font-size:14px;color:var(--muted);line-height:1.5;margin:0;}
+
+@media (prefers-reduced-motion:reduce){.dc-root *{transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="dc-root" id="root"><div class="dc-wrap dc-loading">Открываю лист…</div></div>
+<input type="file" id="importer" accept="application/json,.json" hidden>
+
+<script>
+"use strict";
+
+var STORAGE_KEY = "daily-checklist:v1";
+var GOAL = 80;
+
+var DEFAULT_TASKS = [
+  "Мусор",
+  "Прогноз погоды",
+  "Павербанк",
+  "Выгул собаки 50 мин + дрессура 10 мин",
+  "Л",
+  "Bounty",
+  "Назонекс",
+  "Корм",
+  "Почистить фото",
+  "Душ",
+  "Выгул собаки",
+  "Глаза собаке",
+  "1/4 азатиоприн",
+  "Утром преднизолон 3 табл с 3 июня",
+  "Комната + двор",
+  "Английский (слова), to do",
+  "Витамин Д 1/4",
+  "Выгул собаки в 15:00 и дрессировка (10 минут)",
+  "Глаза собаке",
+  "пдмш",
+  "Работа до 18:00",
+  "Назонекс",
+  "Словарь",
+  "Глаза собаке",
+  "Выгул собаки",
+  "Дом",
+  "Убрать корм",
+  "Загнать машину",
+  "Таблетку лор врач",
+  "Проверить свет",
+  "Открыть кровать",
+  "Зубы",
+  "Долг цех",
+  "Словарь"
+].map(function (text, i) { return { id: "d" + (i + 1), text: text }; });
+
+function dayKey(d) {
+  d = d || new Date();
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+function fmtLong(key) {
+  var p = key.split("-").map(Number);
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString("ru-RU", {
+    weekday: "long", day: "numeric", month: "long"
+  });
+}
+
+function fmtShort(key) {
+  var p = key.split("-").map(Number);
+  return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString("ru-RU", {
+    day: "numeric", month: "short"
+  });
+}
+
+function pctOf(entry) {
+  if (!entry.all || entry.all.length === 0) return 0;
+  var done = entry.done.filter(function (id) { return entry.all.indexOf(id) !== -1; }).length;
+  return Math.round((done / entry.all.length) * 100);
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+var state = {
+  tasks: DEFAULT_TASKS,
+  checked: [],
+  date: dayKey(),
+  history: [],
+  tab: "today",
+  editing: false,
+  storageBroken: false
+};
+
+/* ---------- хранилище ---------- */
+
+function load() {
+  var saved = null;
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) saved = JSON.parse(raw);
+  } catch (e) { saved = null; }
+
+  var today = dayKey();
+  if (saved && Array.isArray(saved.tasks) && saved.tasks.length) {
+    var nextChecked = saved.checked || [];
+    var nextHistory = saved.history || [];
+    if (saved.date && saved.date !== today) {
+      nextHistory = nextHistory
+        .filter(function (h) { return h.d !== saved.date; })
+        .concat([{ d: saved.date, done: nextChecked, all: saved.tasks.map(function (t) { return t.id; }) }])
+        .slice(-180);
+      nextChecked = [];
+    }
+    state.tasks = saved.tasks;
+    state.checked = nextChecked;
+    state.history = nextHistory;
+  }
+  state.date = today;
+}
+
+var saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function () {
+    var payload = JSON.stringify({
+      tasks: state.tasks, checked: state.checked, date: state.date, history: state.history
+    });
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+      if (state.storageBroken) { state.storageBroken = false; render(); }
+    } catch (e) {
+      if (!state.storageBroken) { state.storageBroken = true; render(); }
+    }
+  }, 400);
+}
+
+function update() { render(); save(); }
+
+/* ---------- расчёты ---------- */
+
+function labelMap() {
+  var totals = {}, seen = {}, map = {};
+  state.tasks.forEach(function (t) { totals[t.text] = (totals[t.text] || 0) + 1; });
+  state.tasks.forEach(function (t) {
+    seen[t.text] = (seen[t.text] || 0) + 1;
+    map[t.id] = totals[t.text] > 1 ? t.text + " — " + seen[t.text] : t.text;
+  });
+  return map;
+}
+
+function compute() {
+  var tasks = state.tasks;
+  var total = tasks.length;
+  var done = state.checked.filter(function (id) {
+    return tasks.some(function (t) { return t.id === id; });
+  }).length;
+  var pct = total ? Math.round((done / total) * 100) : 0;
+
+  var past = state.history.slice().sort(function (a, b) { return a.d < b.d ? -1 : 1; })
+    .map(function (h) { return { d: h.d, pct: pctOf(h) }; });
+  var timeline = past.concat([{ d: state.date, pct: pct, today: true }]);
+
+  var streak = 0;
+  for (var i = timeline.length - 1; i >= 0; i--) {
+    if (timeline[i].pct >= GOAL) streak++;
+    else if (timeline[i].today) continue;
+    else break;
+  }
+
+  var avg = state.history.length
+    ? Math.round(state.history.reduce(function (a, h) { return a + pctOf(h); }, 0) / state.history.length)
+    : pct;
+  var best = timeline.reduce(function (a, x) { return Math.max(a, x.pct); }, 0);
+
+  var labels = labelMap();
+  var taskRates = tasks.map(function (t) {
+    var days = state.history.filter(function (h) { return h.all.indexOf(t.id) !== -1; });
+    var hits = days.filter(function (h) { return h.done.indexOf(t.id) !== -1; }).length;
+    return {
+      id: t.id,
+      label: labels[t.id],
+      days: days.length,
+      rate: days.length ? Math.round((hits / days.length) * 100) : null
+    };
+  }).sort(function (a, b) {
+    return (a.rate === null ? 101 : a.rate) - (b.rate === null ? 101 : b.rate);
+  });
+
+  return {
+    total: total, done: done, pct: pct, timeline: timeline, streak: streak,
+    avg: avg, best: best, taskRates: taskRates,
+    missed: tasks.filter(function (t) { return state.checked.indexOf(t.id) === -1; }),
+    chart: timeline.slice(-14)
+  };
+}
+
+/* ---------- отрисовка ---------- */
+
+function render() {
+  var c = compute();
+  var h = "";
+
+  h += '<div class="dc-wrap">';
+
+  h += '<header class="dc-head">' +
+       '<div class="dc-datebar">' +
+         '<span class="dc-date">' + esc(fmtLong(state.date)) + '</span>' +
+         '<span class="dc-count">' + c.done + '<span class="dc-slash">/</span>' + c.total + '</span>' +
+       '</div>' +
+       '<div class="dc-tally" aria-hidden="true">' +
+         state.tasks.map(function (t) {
+           return '<i class="' + (state.checked.indexOf(t.id) !== -1 ? "on" : "") + '"></i>';
+         }).join("") +
+       '</div>' +
+       '<nav class="dc-tabs">' +
+         '<button data-act="tab" data-v="today" class="' + (state.tab === "today" ? "sel" : "") + '">Сегодня</button>' +
+         '<button data-act="tab" data-v="stats" class="' + (state.tab === "stats" ? "sel" : "") + '">Статистика</button>' +
+       '</nav>' +
+       '</header>';
+
+  if (state.storageBroken) {
+    h += '<p class="dc-warn">Отметки не сохраняются. Возможно, включён приватный режим или кончилось место в браузере.</p>';
+  }
+
+  if (state.tab === "today") {
+    h += '<ul class="dc-list">';
+    state.tasks.forEach(function (t, i) {
+      var on = state.checked.indexOf(t.id) !== -1;
+      h += '<li class="' + (on ? "row done" : "row") + '">';
+      if (state.editing) {
+        h += '<div class="edit"><span class="edit-text">' + esc(t.text) + '</span>' +
+             '<div class="edit-btns">' +
+               '<button data-act="up" data-i="' + i + '" aria-label="Выше">↑</button>' +
+               '<button data-act="down" data-i="' + i + '" aria-label="Ниже">↓</button>' +
+               '<button class="del" data-act="del" data-id="' + t.id + '" aria-label="Удалить">✕</button>' +
+             '</div></div>';
+      } else {
+        h += '<button class="tick" data-act="toggle" data-id="' + t.id + '" aria-pressed="' + on + '">' +
+             '<span class="box"><svg viewBox="0 0 24 24"><polyline points="4,13 10,19 20,6"></polyline></svg></span>' +
+             '<span class="text">' + esc(t.text) + '</span></button>';
+      }
+      h += '</li>';
+    });
+    h += '</ul>';
+
+    if (state.editing) {
+      h += '<div class="dc-add">' +
+           '<input id="draft" placeholder="Новая задача" autocomplete="off">' +
+           '<button data-act="add">Добавить</button></div>';
+    }
+
+    h += '<section class="dc-result"><h2>Итог дня</h2>' +
+         '<div class="dc-big"><span class="num">' + c.pct + '%</span>' +
+         '<span class="sub">' + c.done + ' из ' + c.total + ' выполнено</span></div>';
+    if (c.missed.length > 0) {
+      h += '<p class="dc-left">Осталось ' + c.missed.length + ':</p><ul class="dc-missed">' +
+           c.missed.map(function (t) { return '<li>' + esc(t.text) + '</li>'; }).join("") + '</ul>';
+    } else {
+      h += '<p class="dc-left">Весь список закрыт.</p>';
+    }
+    h += '<p class="dc-note">Завтра отметки обнулятся, а сегодняшний результат уйдёт в статистику.</p></section>';
+
+    h += '<div class="dc-tools">' +
+         '<button data-act="edit">' + (state.editing ? "Готово" : "Изменить список") + '</button>' +
+         '<button data-act="clear">Снять все отметки</button></div>';
+    h += '<div class="dc-tools thin">' +
+         '<button data-act="export">Сохранить копию</button>' +
+         '<button data-act="import">Загрузить копию</button></div>';
+  }
+
+  if (state.tab === "stats") {
+    h += '<section class="dc-stats"><div class="dc-figures">' +
+         '<div><span class="fig">' + c.avg + '%</span><span class="cap">в среднем за день</span></div>' +
+         '<div><span class="fig">' + c.streak + '</span><span class="cap">дней подряд от ' + GOAL + '%</span></div>' +
+         '<div><span class="fig">' + c.best + '%</span><span class="cap">лучший день</span></div>' +
+         '</div>';
+
+    h += '<h2>Последние дни</h2>';
+    if (c.chart.length <= 1) {
+      h += '<p class="dc-empty">История появится завтра — сегодняшний день закроется и попадёт сюда.</p>';
+    } else {
+      h += '<div class="dc-chart">' + c.chart.map(function (d) {
+        return '<div class="col"><span class="val">' + d.pct + '</span>' +
+               '<div class="bar-track"><div class="' + (d.today ? "bar now" : "bar") + '" style="height:' + Math.max(d.pct, 2) + '%"></div></div>' +
+               '<span class="lab">' + esc(fmtShort(d.d).replace(".", "")) + '</span></div>';
+      }).join("") + '</div>';
+    }
+
+    h += '<h2>Что чаще всего пропускается</h2>';
+    if (state.history.length === 0) {
+      h += '<p class="dc-empty">Пока не за что зацепиться. Через несколько дней здесь будет видно слабые места.</p>';
+    } else {
+      h += '<ul class="dc-rates">' + c.taskRates.map(function (r) {
+        return '<li><span class="rl">' + esc(r.label) + '</span>' +
+               '<span class="rb"><span style="width:' + (r.rate === null ? 0 : r.rate) + '%"></span></span>' +
+               '<span class="rn">' + (r.rate === null ? "—" : r.rate + "%") + '</span></li>';
+      }).join("") + '</ul>';
+    }
+    h += '<p class="dc-note">Считаются только закрытые дни: ' + state.history.length + '.</p></section>';
+  }
+
+  h += '</div>';
+  document.getElementById("root").innerHTML = h;
+}
+
+/* ---------- действия ---------- */
+
+function exportData() {
+  var blob = new Blob([JSON.stringify({
+    tasks: state.tasks, checked: state.checked, date: state.date, history: state.history
+  }, null, 2)], { type: "application/json" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "checklist-" + state.date + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+document.getElementById("importer").addEventListener("change", function (e) {
+  var f = e.target.files && e.target.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.tasks) || !d.tasks.length) throw new Error("нет задач");
+      state.tasks = d.tasks;
+      state.checked = d.checked || [];
+      state.history = d.history || [];
+      if (d.date && d.date !== dayKey()) state.checked = [];
+      update();
+    } catch (err) {
+      alert("Файл не подошёл: " + err.message);
+    }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+});
+
+document.getElementById("root").addEventListener("click", function (e) {
+  var el = e.target.closest("[data-act]");
+  if (!el) return;
+  var act = el.getAttribute("data-act");
+
+  if (act === "tab") { state.tab = el.getAttribute("data-v"); render(); return; }
+
+  if (act === "toggle") {
+    var id = el.getAttribute("data-id");
+    var i = state.checked.indexOf(id);
+    if (i === -1) state.checked.push(id); else state.checked.splice(i, 1);
+    update(); return;
+  }
+
+  if (act === "edit") { state.editing = !state.editing; render(); return; }
+
+  if (act === "clear") { state.checked = []; update(); return; }
+
+  if (act === "del") {
+    var did = el.getAttribute("data-id");
+    state.tasks = state.tasks.filter(function (t) { return t.id !== did; });
+    state.checked = state.checked.filter(function (x) { return x !== did; });
+    update(); return;
+  }
+
+  if (act === "up" || act === "down") {
+    var idx = Number(el.getAttribute("data-i"));
+    var j = idx + (act === "up" ? -1 : 1);
+    if (j < 0 || j >= state.tasks.length) return;
+    var tmp = state.tasks[idx];
+    state.tasks[idx] = state.tasks[j];
+    state.tasks[j] = tmp;
+    update(); return;
+  }
+
+  if (act === "add") { addFromInput(); return; }
+
+  if (act === "export") { exportData(); return; }
+
+  if (act === "import") { document.getElementById("importer").click(); return; }
+});
+
+document.getElementById("root").addEventListener("keydown", function (e) {
+  if (e.key === "Enter" && e.target.id === "draft") addFromInput();
+});
+
+function addFromInput() {
+  var input = document.getElementById("draft");
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+  state.tasks.push({ id: "t" + Date.now() + Math.random().toString(36).slice(2, 5), text: text });
+  update();
+  var again = document.getElementById("draft");
+  if (again) again.focus();
+}
+
+/* ---------- запуск ---------- */
+
+load();
+render();
+
+setInterval(function () {
+  var today = dayKey();
+  if (today !== state.date) {
+    state.history = state.history
+      .filter(function (x) { return x.d !== state.date; })
+      .concat([{ d: state.date, done: state.checked, all: state.tasks.map(function (t) { return t.id; }) }])
+      .slice(-180);
+    state.checked = [];
+    state.date = today;
+    update();
+  }
+}, 20000);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
